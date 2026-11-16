@@ -1,6 +1,174 @@
 const cinco_dias_ms = 5 * 24 * 60 * 60 * 1000
 //rodar npm install --save-dev @types/node
 import crypto from "node:crypto";
+
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync
+} from "node:fs";
+
+import {
+  createInterface
+} from "node:readline/promises";
+
+import {
+  stdin as input,
+  stdout as output
+} from "node:process";
+
+//Repositório
+
+interface horariodata{
+    horas:number;
+    minutos:number;
+}
+
+interface usuariodata{
+    id_user:string;
+    nome:string;
+    numero_telefone:string;
+    numero_de_compras:number;
+    numero_de_vendas:number;
+    id_transacoes_cliente: string[];
+    id_transacoes_vendedor: string[];
+}
+
+interface produtodata{
+    id_produto:string;
+    nome:string;
+    preco:number;
+    vendedor:string;
+    quantidade:number;
+    horario_inicio:horariodata;
+    horario_final:horariodata;
+    tipo_produto:string;
+    tipo?:string;
+}
+
+interface transacaodata{
+    id_transaction:string;
+    id_vendedor:string;
+    id_comprador:string;
+    quantidade:number;
+    id_produto:string;
+    confirmacao_comprador:boolean;
+    confirmacao_vendedor:boolean;
+    expira_em:number;
+}
+
+interface MercadoData{
+    usuarios:usuariodata[];
+    produtos:produtodata[];
+    transacoes:transacaodata[];
+}
+
+interface mercado{
+    usuarios: usuario[];
+    produtos: produto[];
+}
+
+//Repositórios
+class jsonUsuarioRepositorio{
+    constructor(private readonly arquivo:string){}
+    existe(): boolean{
+        return existsSync(this.arquivo)
+    }
+
+    salvar(m : mercado){
+        const dados:usuariodata[] = m.usuarios.map(u =>({
+            id_user:u.id_user,
+            nome:u.nome,
+            numero_telefone:u.numero_telefone,
+            numero_de_compras:u.numero_de_compras,
+            numero_de_vendas:u.numero_de_vendas,
+            id_transacoes_cliente: u.transacoes_cliente.map(x =>x.id_transaction),
+            id_transacoes_vendedor: u.transacoes_vendedor.map(x => x.id_transaction)
+
+        }));
+        writeFileSync(this.arquivo,JSON.stringify(dados,null,2),"utf-8")
+    }
+
+    carregar():usuariodata[]{//retorna os dados do arquivo sem ter criado os usuarios ou coisas do tipo
+        if(!this.existe()) return [];
+        return JSON.parse(readFileSync(this.arquivo,"utf-8"));
+    }
+}
+
+class jsonProdutosRepositorio{
+    constructor(private readonly arquivo:string){}
+    existe(): boolean{
+        return existsSync(this.arquivo)
+    }
+
+    salvar(m : mercado){
+        const dados:produtodata[] = m.produtos.map((u):produtodata =>{//cada chamada retorna um produtodata novo para dados
+                const base = {
+                id_produto:u.id_produto,
+                nome:u.nome,
+                preco:u.preco,
+                vendedor:u.vendedor.id_user,
+                quantidade:u.quantidade,
+                horario_inicio:{
+                    horas:u.horario_inicio.horas,
+                    minutos:u.horario_inicio.minutos
+                },
+                horario_final:{
+                    horas:u.horario_final.horas,
+                    minutos:u.horario_final.minutos
+                }
+            };
+        return u instanceof comida//se u for comida, retorna os dados de base, o tipo_produto = comida e o tipo dele
+        ?{...base,
+            tipo_produto:"comida",
+            tipo:u.tipo
+        }//se u não for comida, retorna os dados da base e tipo_produto = geral
+        : {... base,
+            tipo_produto:"geral"
+        };
+        });
+        
+        writeFileSync(this.arquivo,JSON.stringify(dados,null,2),"utf-8")
+    }
+
+    carregar():produtodata[]{//retorna os dados do arquivo sem ter criado os usuarios ou coisas do tipo
+        if(!this.existe()) return [];
+        return JSON.parse(readFileSync(this.arquivo,"utf-8"));
+    }
+}
+
+class jsonTransacaoRepositorio{
+    constructor(private readonly arquivo:string){}
+    existe(): boolean{
+        return existsSync(this.arquivo)
+    }
+
+    salvar(m : mercado){
+        const transacoes = m.usuarios.flatMap(u =>u.transacoes_vendedor)//transacoes tão dentro dos usuarios
+        //flatMap junta todas os elementos de todas as listas em uma única lista
+        //Com isso, ele junta todas as transações em uma única lista
+        
+        const dados:transacaodata[] = transacoes.map( x => ({
+            id_transaction : x.id_transaction,
+            id_vendedor : x.vendedor.id_user,
+            id_comprador : x.comprador.id_user,
+            quantidade : x.quantidade,
+            id_produto : x.produto.id_produto,
+            confirmacao_comprador : x.confirmacao_comprador,
+            confirmacao_vendedor : x.confirmacao_vendedor,
+            expira_em : x.expira_em
+        }));
+        
+        writeFileSync(this.arquivo,JSON.stringify(dados,null,2),"utf-8")
+    }
+
+    carregar():transacaodata[]{
+        if(!this.existe()) return [];
+        return JSON.parse(readFileSync(this.arquivo,"utf-8"));
+    }
+}
+//classes
+
 class horario{
     horas:number;
     minutos:number;
@@ -9,6 +177,7 @@ class horario{
         this.minutos = minutos;
     };
 }
+
 interface produto{
     id_produto:string;
     nome:string;
@@ -19,6 +188,7 @@ interface produto{
     horario_final:horario;
 
 }
+
 class geral implements produto{
     id_produto:string;
     nome:string;
@@ -85,6 +255,7 @@ class transacao{
     produto:produto;
     confirmacao_comprador:boolean;
     confirmacao_vendedor:boolean;
+    expira_em:number;
     constructor(
         vendedor:usuario,
         comprador:usuario,
@@ -100,6 +271,8 @@ class transacao{
         //onExpirar é o nome da variável que guarda a funçãp do tipo void que será passada
         this.timer.unref?.();//não impede o Node de encerrar
         //não deixa o timer segurar o programa
+
+        this.expira_em = Date.now() + cinco_dias_ms;
         this.id_transaction = crypto.randomUUID();
         this.vendedor = vendedor;
         this.comprador = comprador;
