@@ -72,6 +72,7 @@ interface mercado{
 }
 
 //Repositórios
+
 class jsonUsuarioRepositorio{
     constructor(private readonly arquivo:string){}
     existe(): boolean{
@@ -171,7 +172,9 @@ class jsonTransacaoRepositorio{
         return JSON.parse(readFileSync(this.arquivo,"utf-8"));
     }
 }
+
 //SQLite
+
 class sqliteBanco{
     readonly db:DatabaseSync;//referencia a base de dadoss como db
     constructor(arquivo:string){
@@ -237,7 +240,7 @@ class sqliteUsuarioRepositorio{
     }
 }
 
-//classes
+//Classes
 
 class horario{
     horas:number;
@@ -405,9 +408,27 @@ class usuario{
         return i!=-1 && j!=-1;
     }
 
+    criar_produto(
+        nome: string,
+        preco: number,
+        quantidade: number,
+        horario_inicio: horario,
+        horario_final: horario,
+        tipo?: string
+    ): produto {
+        let novo: produto;
+        if (tipo) {
+            novo = new comida(nome, preco, this, quantidade, horario_inicio, horario_final, tipo);
+        } else {
+            novo = new geral(nome, preco, this, quantidade, horario_inicio, horario_final);
+        }
+
+        return novo;
+    }
+
     cancelar_reserva(t:transacao){
         this.remover_transacao(t);
-        t.cancelar_timer;
+        t.cancelar_timer();
         t.produto.quantidade += t.quantidade;
     }
 
