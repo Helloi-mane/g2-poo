@@ -72,7 +72,6 @@ interface mercado{
 }
 
 //Repositórios
-
 class jsonUsuarioRepositorio{
     constructor(private readonly arquivo:string){}
     existe(): boolean{
@@ -172,9 +171,7 @@ class jsonTransacaoRepositorio{
         return JSON.parse(readFileSync(this.arquivo,"utf-8"));
     }
 }
-
 //SQLite
-
 class sqliteBanco{
     readonly db:DatabaseSync;//referencia a base de dadoss como db
     constructor(arquivo:string){
@@ -240,7 +237,97 @@ class sqliteUsuarioRepositorio{
     }
 }
 
-//Classes
+class sqliteProdutosRepositorio{
+    constructor(private readonly banco:sqliteBanco){};
+    salvar(m:mercado){
+        this.banco.db.exec('DELETE FROM produtos');
+        const inserir = this.banco.db.prepare('INSERT INTO produtos(id_produto, nome, preco, vendedor, quantidade, inicio_horas,inicio_minutos, final_horas, final_minutos, tipo_produto, tipo) VALUES (:id_produto, :nome, :preco, :vendedor,:quantidade, :inicio_horas, :inicio_minutos, :final_horas, :final_minutos, :tipo_produto, :tipo)');
+        for(const u of m.produtos){
+            inserir.run({
+                id_produto:u.id_produto,
+                nome:u.nome,
+                preco:u.preco,
+                vendedor:u.vendedor.id_user,
+                quantidade:u.quantidade,
+                inicio_horas:u.horario_inicio.horas,
+                inicio_minutos:u.horario_inicio.minutos,
+                final_horas:u.horario_final.horas,
+                final_minutos:u.horario_final.minutos,
+                tipo_produto:u instanceof comida?"comida": "geral", //se u for de classe comida, tipo_produto recebe "comida". Se não, recebe "geral"
+                tipo: u instanceof comida? u.tipo:null//se u for da classe comida, ent o tipo recebe u.tipo 
+            });
+        }
+    }
+
+    carregar():produtodata[]{
+        const linhas = this.banco.db.prepare('SELECT * FROM produtos ORDER BY rowid').all() as unknown as Array<{//linhas pegará todas as linhas do banco e retornará como um array com todos os dados
+            id_produto: string;
+            nome:string;
+            preco:number;
+            vendedor:string;
+            quantidade:number;
+            inicio_horas:number;
+            inicio_minutos:number;
+            final_horas:number;
+            final_minutos:number;
+            tipo_produto:string;
+            tipo:string | null;//pode ser string ou null
+        }>;
+        return linhas.map(l=>({
+            id_produto:l.id_produto,
+            nome:l.nome,
+            preco:l.preco,
+            vendedor:l.vendedor,
+            quantidade:l.quantidade,
+            horario_inicio:{horas:l.inicio_horas,minutos: l.inicio_minutos},
+            horario_final:{horas:l.final_horas,minutos:l.final_minutos},
+            tipo_produto: l.tipo_produto,
+            tipo:l.tipo ?? undefined//se n tiver tipo ent é undefined
+        }))
+    }
+}
+
+class sqliteTransacaoRepositorio{
+    constructor(private readonly banco:sqliteBanco){};
+    salvar(m:mercado){
+        this.banco.db.exec("DELETE FROM transacoes");
+        const transacoes = m.usuarios.flatMap(u=>u.transacoes_vendedor);//usando todos os usuarios, olhamos para todas as transacoes de vendedores.
+        //isso lista todas as transacoes existentes
+        const inserir = this.banco.db.prepare("INSERT INTO transacoes(id_transaction, id_vendedor, id_comprador, quantidade, id_produto, confirmacao_comprador, confirmacao_vendedor, expira_em) VALUES(:id_transaction,:id_vendedor,:id_comprador,:quantidade,:id_produto,:confirmacao_comprador,:confirmacao_vendedor,:expira_em)");
+        for(const u of transacoes){
+            inserir.run({
+                id_transaction:u.id_transaction,
+                id_vendedor:u.vendedor.id_user,
+                id_comprador:u.comprador.id_user,
+                quantidade:u.quantidade,
+                id_produto:u.produto.id_produto,
+                confirmacao_comprador:u.confirmacao_comprador ? 1:0,//como em sql n existe booleano vamos converter pára números
+                //? se verdadeiro : se falso
+                confirmacao_vendedor:u.confirmacao_vendedor?1:0,
+                expira_em:u.expira_em
+            });
+        }
+    }
+
+    carregar():transacaodata[]{
+        const linhas = this.banco.db.prepare("SELECT * FROM transacoes ORDER BY rowid").all() as unknown as Array<{
+            id_transaction:string;
+            id_vendedor:string;
+            id_comprador:string;
+            quantidade:number;
+            id_produto:string;
+            confirmacao_comprador:number;
+            confirmacao_vendedor:number;
+            expira_em:number;
+        }>;
+        return linhas.map(l=>({
+            ...l, confirmacao_comprador: l.confirmacao_comprador !==0,//o !==0 faz ele voltar a ser true pu false. Se for igual a 0 ent é false e se for diferente, true
+            confirmacao_vendedor:l.confirmacao_vendedor !==0
+        }));
+    }
+}
+
+//classes
 
 class horario{
     horas:number;
@@ -407,7 +494,7 @@ class usuario{
         if(j!=-1) t.comprador.transacoes_cliente.splice(j,1);
         return i!=-1 && j!=-1;
     }
-
+    
     criar_produto(
         nome: string,
         preco: number,
