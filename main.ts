@@ -126,7 +126,7 @@ async function menuPrincipal() {
         );
         service.definirPontoVenda(vendedorLogado, novo, local);
         estadoMercado.produtos.push(novo);
-        console.log(`✅ Produto "${novo.nome}" cadastrado com sucesso!`);
+        console.log(`Produto "${novo.nome}" cadastrado com sucesso!`);
         break;
       }
 
