@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "start": "deno run --allow-all main.ts",
+    "tudo": "deno run --allow-all main.ts && git add . && git commit -m \"Atualização POO\" && git push"
+  }
+}

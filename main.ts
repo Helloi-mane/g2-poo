@@ -1,0 +1,1 @@
+console.log("Ambiente Deno + TypeScript inicializado com sucesso!");
