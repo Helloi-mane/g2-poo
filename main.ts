@@ -149,7 +149,7 @@ async function menuPrincipal() {
           preco: novoPrecoStr.trim() ? Number(novoPrecoStr) : undefined,
           tipo: novoTipo?.trim() || undefined
         });
-        console.log("✅ Produto atualizado!");
+        console.log("Produto atualizado!");
         break;
       }
 
@@ -157,7 +157,7 @@ async function menuPrincipal() {
         const prod = await escolherProduto();
         if (!prod) break;
         service.alternarPausa(vendedorLogado, prod);
-        console.log(`✅ Produto agora está ${prod.pausado ? "PAUSADO" : "ATIVO"}!`);
+        console.log(`Produto agora está ${prod.pausado ? "PAUSADO" : "ATIVO"}!`);
         break;
       }
 
@@ -165,7 +165,7 @@ async function menuPrincipal() {
         const prod = await escolherProduto();
         if (!prod) break;
         const ok = service.removerProduto(vendedorLogado, prod);
-        console.log(ok ? "✅ Produto removido!" : "❌ Não foi possível remover.");
+        console.log(ok ? "Produto removido!" : "Não foi possível remover.");
         break;
       }
 
@@ -174,7 +174,7 @@ async function menuPrincipal() {
         if (!prod) break;
         const novaQtd = Number(await rl.question(`Nova quantidade em estoque (atual: ${prod.quantidade}): `));
         const ok = service.atualizarEstoque(vendedorLogado, prod, novaQtd);
-        console.log(ok ? "✅ Estoque atualizado!" : "❌ Quantidade inválida.");
+        console.log(ok ? "Estoque atualizado!" : "Quantidade inválida.");
         break;
       }
 
@@ -183,7 +183,7 @@ async function menuPrincipal() {
         if (!prod) break;
         const local = await rl.question(`Novo ponto de venda no campus (atual: ${prod.ponto_venda}): `);
         const ok = service.definirPontoVenda(vendedorLogado, prod, local);
-        console.log(ok ? "✅ Ponto de venda atualizado!" : "❌ Local inválido.");
+        console.log(ok ? "Ponto de venda atualizado!" : "Local inválido.");
         break;
       }
 
@@ -196,7 +196,7 @@ async function menuPrincipal() {
         const res = await escolherReserva();
         if (!res) break;
         service.aceitarReserva(vendedorLogado, res);
-        console.log("✅ Reserva aceita! Combine a retirada com o comprador.");
+        console.log("Reserva aceita! Combine a retirada com o comprador.");
         break;
       }
 
@@ -204,7 +204,7 @@ async function menuPrincipal() {
         const res = await escolherReserva();
         if (!res) break;
         service.recusarOuCancelarReserva(vendedorLogado, res);
-        console.log("✅ Reserva recusada/cancelada e estoque devolvido!");
+        console.log("Reserva recusada/cancelada e estoque devolvido!");
         break;
       }
 
@@ -212,7 +212,7 @@ async function menuPrincipal() {
         const res = await escolherReserva();
         if (!res) break;
         service.marcarComoRetirada(vendedorLogado, res);
-        console.log(`✅ Produto entregue! Total de vendas realizadas: ${vendedorLogado.numero_de_vendas}`);
+        console.log(`Produto entregue! Total de vendas realizadas: ${vendedorLogado.numero_de_vendas}`);
         break;
       }
 
@@ -223,7 +223,7 @@ async function menuPrincipal() {
       }
 
       default:
-        console.log("⚠️ Opção inválida.");
+        console.log(" Opção inválida.");
     }
   }
 
