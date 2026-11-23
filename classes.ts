@@ -2,6 +2,8 @@ const cinco_dias_ms = 5 * 24 * 60 * 60 * 1000
 //rodar npm install --save-dev @types/node
 import { DatabaseSync } from "node:sqlite";
 
+import { setTimeout } from "node:timers";
+
 import crypto from "node:crypto";
 
 import {
@@ -346,7 +348,6 @@ interface produto{
     quantidade:number;
     horario_inicio:horario;
     horario_final:horario;
-
 }
 
 class geral implements produto{
@@ -547,4 +548,90 @@ class usuario{
         this.finalizando_compra(transacao);
     }
 
+}
+
+
+function aoExpirar(t:transacao):void{
+    if(t.comprador.remover_transacao(t)){
+        t.produto.quantidade += t.quantidade;
+        console.log("Transação expirada e removida:", t.id_transaction);
+    }
+}//função que quandpo expira a transacao, volta a quantidade ofertada e apaga a transacao da lista do comprador e do vendedor
+
+function carregar_mercado(
+    repo_usuarios:sqliteUsuarioRepositorio,
+    repo_produtos:sqliteProdutosRepositorio,
+    repo_transacoes:sqliteTransacaoRepositorio
+    ):mercado{
+    const usuarios = new Map<string, usuario>();//usuarios será um objto que contém uma string e um usuario
+    for(const d of repo_usuarios.carregar()){
+        const u = new usuario(d.nome, d.numero_telefone, d.senha);
+        u.id_user = d.id_user;
+        u.numero_de_compras = d.numero_de_compras;
+        u.numero_de_vendas = d.numero_de_vendas;
+        usuarios.set(u.id_user,u);//guarda no objeto usuario o id e o objeto usuário
+    }
+    
+    const buscar_usuario = (id:string):usuario => {
+        const u = usuarios.get(id);//u guarda o usuario com o id recebido
+        if(!u) throw new Error(`Usuario ${id} não encontrado`)
+        return u;
+    }
+    const produtos = new Map<string, produto>();
+    for(const p of repo_produtos.carregar()){//vai criar um produto para todos os produtos do repositorio
+        const vendedor = buscar_usuario(p.vendedor);
+        const inicio = new horario(p.horario_inicio.horas, p.horario_inicio.minutos);
+        const final = new horario(p.horario_final.horas, p.horario_final.minutos);
+        const produto:produto = p.tipo_produto === "comida" ? new comida(p.nome, p.preco, vendedor, p.quantidade, inicio, final, p.tipo ?? "")
+        //Se o produto for do tipo "comida", criamos ele como uma comida, que contém o tipo de comida se ela é doce ou slagada
+        : new geral (p.nome, p.preco,vendedor,p.quantidade,inicio, final)
+        //se não for uma comida, então, ele é do tipo geral
+        produto.id_produto = p.id_produto;
+        produtos.set(p.id_produto,produto);
+        //cria um meio que array de objetos que contém tanto o id quando o próprio produto 
+    }
+
+    for (const a of repo_transacoes.carregar()){
+        const vendedor = buscar_usuario(a.id_vendedor);
+        const comprador = buscar_usuario(a.id_comprador);
+        const prod = produtos.get(a.id_produto);
+        if(!prod) throw new Error(`Produtor ${a.id_produto} não encontrado`);
+
+        const novo = new transacao(vendedor, comprador, a.quantidade, prod, aoExpirar);
+        novo.cancelar_timer()//evita que o timer da transacao criada comece
+        novo.id_transaction = a.id_transaction;
+        novo.expira_em = a.expira_em;
+        novo.confirmacao_comprador = a.confirmacao_comprador;
+        novo.confirmacao_vendedor = a.confirmacao_vendedor;
+
+        const restante = Math.max(0,a.expira_em - Date.now());//calcula o tempo que resta até expirar
+        setTimeout(() => aoExpirar(novo),restante).unref?.();//unref permite o program terminar mesmo com um timer
+
+        comprador.transacoes_cliente.push(novo);
+        vendedor.transacoes_vendedor.push(novo);
+    }
+    return {
+        usuarios:[...usuarios.values()],
+        produtos:[...produtos.values()]//retorna todos os usuarios e produtos criados dentro de mercado
+    }
+}
+
+function salvar_mercado_sqlite(
+    m:mercado,
+    banco:sqliteBanco,
+    repo_usuarios:sqliteUsuarioRepositorio,
+    repo_produtos:sqliteProdutosRepositorio,
+    repo_transacoes:sqliteTransacaoRepositorio
+):void{
+    banco.db.exec("BEGIN TRANSACTION");
+    try{
+        banco.db.exec("PRAGMA defer_foreign_keys = ON");//permite apagar uma tabela msm q ela tenha chaves estrangeiras. Assim, só dará erro se algo como algum produto sem vendedor existir
+        repo_usuarios.salvar(m);
+        repo_produtos.salvar(m);
+        repo_transacoes.salvar(m);
+        banco.db.exec("COMMIT");
+    }catch(erro){
+        banco.db.exec("ROLLBACK");
+        throw erro;
+    }
 }
