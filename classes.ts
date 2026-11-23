@@ -21,12 +21,12 @@ import {
 
 //Interfaces
 
-interface horariodata{
+export interface horariodata{
     horas:number;
     minutos:number;
 }
 
-interface usuariodata{
+export interface usuariodata{
     id_user:string;
     nome:string;
     senha:string;
@@ -37,7 +37,7 @@ interface usuariodata{
     id_transacoes_vendedor: string[];
 }
 
-interface produtodata{
+export interface produtodata{
     id_produto:string;
     nome:string;
     preco:number;
@@ -49,7 +49,7 @@ interface produtodata{
     tipo?:string;
 }
 
-interface transacaodata{
+export interface transacaodata{
     id_transaction:string;
     id_vendedor:string;
     id_comprador:string;
@@ -60,19 +60,19 @@ interface transacaodata{
     expira_em:number;
 }
 
-interface MercadoData{
+export interface MercadoData{
     usuarios:usuariodata[];
     produtos:produtodata[];
     transacoes:transacaodata[];
 }
 
-interface mercado{
+export interface mercado{
     usuarios: usuario[];
     produtos: produto[];
 }
 
 //Repositórios
-class jsonUsuarioRepositorio{
+export class jsonUsuarioRepositorio{
     constructor(private readonly arquivo:string){}
     existe(): boolean{
         return existsSync(this.arquivo)
@@ -99,7 +99,7 @@ class jsonUsuarioRepositorio{
     }
 }
 
-class jsonProdutosRepositorio{
+export class jsonProdutosRepositorio{
     constructor(private readonly arquivo:string){}
     existe(): boolean{
         return existsSync(this.arquivo)
@@ -141,7 +141,7 @@ class jsonProdutosRepositorio{
     }
 }
 
-class jsonTransacaoRepositorio{
+export class jsonTransacaoRepositorio{
     constructor(private readonly arquivo:string){}
     existe(): boolean{
         return existsSync(this.arquivo)
@@ -172,7 +172,7 @@ class jsonTransacaoRepositorio{
     }
 }
 //SQLite
-class sqliteBanco{
+export class sqliteBanco{
     readonly db:DatabaseSync;//referencia a base de dadoss como db
     constructor(arquivo:string){
         this.db = new DatabaseSync(arquivo);//passa o caminho para um arquivo e nele os dados serão guardados. Caso ele não exiosta,ele será criado
@@ -190,7 +190,7 @@ class sqliteBanco{
     }
 }
 
-class sqliteUsuarioRepositorio{
+export class sqliteUsuarioRepositorio{
     constructor(private readonly banco:sqliteBanco){}//recebe o banco
     salvar(m:mercado){
         this.banco.db.exec('BEGIN');
@@ -237,7 +237,7 @@ class sqliteUsuarioRepositorio{
     }
 }
 
-class sqliteProdutosRepositorio{
+export class sqliteProdutosRepositorio{
     constructor(private readonly banco:sqliteBanco){};
     salvar(m:mercado){
         this.banco.db.exec('DELETE FROM produtos');
@@ -280,14 +280,14 @@ class sqliteProdutosRepositorio{
             vendedor:l.vendedor,
             quantidade:l.quantidade,
             horario_inicio:{horas:l.inicio_horas,minutos: l.inicio_minutos},
-            horario_final:{horas:l.final_horas,minutos:l.final_minutos},
+            horario_final:{horas:l.final_horas,minutos: l.final_minutos},
             tipo_produto: l.tipo_produto,
             tipo:l.tipo ?? undefined//se n tiver tipo ent é undefined
         }))
     }
 }
 
-class sqliteTransacaoRepositorio{
+export class sqliteTransacaoRepositorio{
     constructor(private readonly banco:sqliteBanco){};
     salvar(m:mercado){
         this.banco.db.exec("DELETE FROM transacoes");
@@ -329,7 +329,7 @@ class sqliteTransacaoRepositorio{
 
 //classes
 
-class horario{
+export class horario{
     horas:number;
     minutos:number;
     constructor(horas:number, minutos:number){
@@ -338,7 +338,7 @@ class horario{
     };
 }
 
-interface produto{
+export interface produto{
     id_produto:string;
     nome:string;
     preco:number;
@@ -346,10 +346,11 @@ interface produto{
     quantidade:number;
     horario_inicio:horario;
     horario_final:horario;
-
+    pausado:boolean;
+    ponto_venda:string;
 }
 
-class geral implements produto{
+export class geral implements produto{
     id_produto:string;
     nome:string;
     preco:number;
@@ -357,6 +358,8 @@ class geral implements produto{
     quantidade:number;
     horario_inicio:horario;
     horario_final:horario;
+    pausado:boolean = false;
+    ponto_venda:string = "A combinar";
 
     constructor(
     nome:string,
@@ -376,7 +379,7 @@ class geral implements produto{
         this.horario_final = horario_final;
     }
 }
-class comida implements produto{
+export class comida implements produto{
     id_produto: string;
     nome:string;
     preco:number;
@@ -385,6 +388,8 @@ class comida implements produto{
     horario_inicio:horario;
     horario_final:horario;
     tipo:string;
+    pausado:boolean = false;
+    ponto_venda:string = "A combinar";
     constructor(
         nome:string,
         preco:number, 
@@ -406,7 +411,7 @@ class comida implements produto{
     };
 }
 
-class transacao{
+export class transacao{
     private timer?: NodeJS.Timeout;//tipo do setTimeout
     id_transaction:string;
     vendedor:usuario;
@@ -447,7 +452,7 @@ class transacao{
     }
 }
 
-class usuario{
+export class usuario{
     id_user:string;
     senha:string;
     nome:string;
@@ -520,6 +525,7 @@ class usuario{
     }
 
     reserva(item : produto, quantidade : number) : void{
+        if (item.pausado) return;
         if (item.quantidade - quantidade < 0 || quantidade <= 0) return;
         const nova = this.criar_transacao(item.vendedor , this, quantidade, item);
         item.quantidade -= quantidade;
