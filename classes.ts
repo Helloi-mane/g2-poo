@@ -29,7 +29,9 @@ interface horariodata{
 interface usuariodata{
     id_user:string;
     nome:string;
-    senha:string;
+    email: string;
+    senha_hash:string;
+    salt: string;
     numero_telefone:string;
     numero_de_compras:number;
     numero_de_vendas:number;
@@ -82,7 +84,9 @@ class jsonUsuarioRepositorio{
         const dados:usuariodata[] = m.usuarios.map(u =>({
             id_user:u.id_user,
             nome:u.nome,
-            senha:u.senha,
+            email:u.email,
+            senha_hash:u.senha_hash,
+            salt:u.salt,
             numero_telefone:u.numero_telefone,
             numero_de_compras:u.numero_de_compras,
             numero_de_vendas:u.numero_de_vendas,
@@ -182,7 +186,7 @@ class sqliteBanco{
         this.criar_tabelas();
     }
     private criar_tabelas():void{
-        this.db.exec('CREATE TABLE IF NOT EXISTS usuarios( id_user TEXT PRIMARY KEY, nome TEXT NOT NULL, senha TEXT NOT NULL, numero_telefone TEXT NOT NULL, numero_de_compras INTEGER NOT NULL, numero_de_vendas INTEGER NOT NULL);'
+        this.db.exec('CREATE TABLE IF NOT EXISTS usuarios( id_user TEXT PRIMARY KEY, nome TEXT NOT NULL, email TEXT NOT NULL UNIQUE, senha_hash TEXT NOT NULL, salt TEXT NOT NULL, numero_telefone TEXT NOT NULL, numero_de_compras INTEGER NOT NULL, numero_de_vendas INTEGER NOT NULL);'
         //cria tabela de usuários com todas as colunas
         )
         this.db.exec('CREATE TABLE IF NOT EXISTS produtos(id_produto TEXT PRIMARY KEY, nome TEXT NOT NULL, preco REAL NOT NULL, vendedor TEXT NOT NULL, quantidade INTEGER NOT NULL, inicio_horas INTEGER NOT NULL, inicio_minutos INTEGER NOT NULL, final_horas INTEGER NOT NULL, final_minutos INTEGER NOT NULL, tipo_produto TEXT NOT NULL, tipo TEXT, FOREIGN KEY(vendedor) REFERENCES usuarios(id_user))');
@@ -196,12 +200,14 @@ class sqliteUsuarioRepositorio{
         this.banco.db.exec('BEGIN');
         try{
             this.banco.db.exec('DELETE FROM usuarios');//apaga todos os dados da tabela usuarios para evitar repetições
-            const inserir = this.banco.db.prepare('INSERT INTO usuarios(id_user, nome, senha, numero_telefone, numero_de_compras, numero_de_vendas) VALUES(:id_user, :nome, :senha,:numero_telefone,:numero_de_compras,:numero_de_vendas)');
+            const inserir = this.banco.db.prepare('INSERT INTO usuarios(id_user, nome, email, senha_hash, salt, numero_telefone, numero_de_compras, numero_de_vendas) VALUES(:id_user, :nome, :email, :senha_hash, :salt, :numero_telefone,:numero_de_compras,:numero_de_vendas)');
             for(const u of m.usuarios){
                 inserir.run({
                     id_user:u.id_user,
                     nome:u.nome,
-                    senha:u.senha,
+                    email:u.email,
+                    senha_hash:u.senha_hash,
+                    salt:u.salt,
                     numero_telefone:u.numero_telefone,
                     numero_de_compras:u.numero_de_compras,
                     numero_de_vendas:u.numero_de_vendas
@@ -217,7 +223,9 @@ class sqliteUsuarioRepositorio{
             //as unknown apaga o tipo original que o linhas receberia e o as Array indfica que o linhas receberá um array cujos elementos serão os seguintes
             id_user:string;
             nome:string;
-            senha:string;
+            email:string;
+            senha_hash:string;
+            salt:string;
             numero_telefone:string;
             numero_de_compras:number;
             numero_de_vendas:number;
@@ -364,10 +372,11 @@ class geral implements produto{
     vendedor:usuario,
     quantidade:number,
     horario_inicio:horario,
-    horario_final:horario)
-    
+    horario_final:horario,
+    id_produto?:string)//só é usado se vier do banco
+
     {
-        this.id_produto = crypto.randomUUID();
+        this.id_produto = id_produto ?? crypto.randomUUID();
         this.nome = nome;
         this.preco = preco;
         this.vendedor = vendedor;
@@ -392,10 +401,11 @@ class comida implements produto{
         quantidade:number,
         horarioinicio:horario,
         horariofinal:horario,
-        tipo:string
+        tipo:string,
+        id_produto?:string//só é usado se vier do banco
     )
     {
-        this.id_produto = crypto.randomUUID();
+        this.id_produto = id_produto ?? crypto.randomUUID();
         this.nome = nome;
         this.preco = preco;
         this.vendedor = vendedor;
@@ -421,25 +431,30 @@ class transacao{
         comprador:usuario,
         quantidade:number, 
         produto:produto,
-        private onExpirar:(transacao:transacao)=>void//descrever tipo de função usa => ao invés de :
+        private onExpirar:(transacao:transacao)=>void,//descrever tipo de função usa => ao invés de :
+        id_transaction?:string,//os 4 últimos só são usados se vierem do banco
+        expira_em?:number,
+        confirmacao_comprador?:boolean,
+        confirmacao_vendedor?:boolean
     )//usar private faz a função onExpirar ser criada
-    {   
-        this.timer = setTimeout(() => this.onExpirar(this),cinco_dias_ms);//o () faz ele espe-
-        //rar 5 dias para então executar o onExpirar(this), que faz a propria tran-
-        //sacao sumir
+    {
+        this.expira_em = expira_em ?? Date.now() + cinco_dias_ms;//se veio do banco, mantém o prazo que já tinha
+
+        //espera só o tempo que falta (se já passou, o tempo é 0 e expira logo em seguida)
+        const restante = Math.max(this.expira_em - Date.now(), 0);
+        this.timer = setTimeout(() => this.onExpirar(this),restante);//o () faz ele esperar para então executar o onExpirar(this), que faz a propria transacao sumir
 
         //onExpirar é o nome da variável que guarda a funçãp do tipo void que será passada
         this.timer.unref?.();//não impede o Node de encerrar
         //não deixa o timer segurar o programa
 
-        this.expira_em = Date.now() + cinco_dias_ms;
-        this.id_transaction = crypto.randomUUID();
+        this.id_transaction = id_transaction ?? crypto.randomUUID();
         this.vendedor = vendedor;
         this.comprador = comprador;
         this.produto = produto;
         this.quantidade = quantidade;
-        this.confirmacao_comprador = false;
-        this.confirmacao_vendedor = false;
+        this.confirmacao_comprador = confirmacao_comprador ?? false;
+        this.confirmacao_vendedor = confirmacao_vendedor ?? false;
     };
     cancelar_timer():void{
         if(this.timer) clearTimeout(this.timer);//cancela o timer
@@ -447,9 +462,40 @@ class transacao{
     }
 }
 
+const TAMANHO_HASH = 64;
+
+function gerar_salt(): string {
+    return crypto.randomBytes(16).toString("hex");
+}
+
+function gerar_hash(senha: string, salt: string): string {
+    return crypto.scryptSync(senha, salt, TAMANHO_HASH).toString("hex")
+}
+
+function conferir_senha(senha: string, salt: string, hash_guardado:string): boolean {
+// mo daora fazer essa parte aqui :)
+    const calculado = Buffer.from(gerar_hash(senha,salt), "hex");
+    const guardado = Buffer.from(hash_guardado, "hex");
+
+    return calculado.length === guardado.length && crypto.timingSafeEqual(calculado, guardado)
+}
+
+// aceita @unifesp.br (dps vou implementar a confirmação de email)
+const EMAIL_UNIFESP = /^[^\s@]+@([a-z0-9-]+\.)*unifesp\.br$/;
+
+function validar_email(email: string): string {
+    const normalizado = email.trim().toLowerCase();
+    if (!EMAIL_UNIFESP.test(normalizado)) {
+        throw new Error("Só são aceitos emails do domínio @unifesp.br.");
+    }
+    return normalizado;
+}
+
 class usuario{
     id_user:string;
-    senha:string;
+    email: string;
+    senha_hash:string;
+    salt: string;
     nome:string;
     numero_telefone:string;
     numero_de_compras:number;
@@ -459,20 +505,41 @@ class usuario{
     
     constructor(
         nome:string, 
+        email: string,
         numero_telefone:string, 
-        senha:string
+        senha_hash:string,
+        salt: string,
+        id_user?: string, //é usado só se vier
+        numero_de_compras?: number,//esses dois também, se vierem do banco
+        numero_de_vendas?: number
     )
         
     {
-        this.senha = senha;
-        this.id_user = crypto.randomUUID();
+        this.email = email;
+        this.senha_hash = senha_hash;
+        this.salt = salt;
+        this.id_user = id_user ?? crypto.randomUUID(); //se não ele gera outro ID sempre que carregar do banco
         this.nome = nome;
         this.numero_telefone = numero_telefone;
-        this.numero_de_compras = 0;
-        this.numero_de_vendas = 0;
+        this.numero_de_compras = numero_de_compras ?? 0;
+        this.numero_de_vendas = numero_de_vendas ?? 0;
         this.transacoes_cliente = [];
         this.transacoes_vendedor = [];
     };
+
+    static cadastrar(nome: string, email:string, telefone: string, senha: string): usuario {
+
+        const email_normalizado = validar_email(email);
+        if(senha.length < 8) throw new Error ("A senha precisa ter pelo menos 8 caracteres")
+        const salt = gerar_salt();
+
+        // ordem do construtor: (nome, email, telefone, senha_hash, salt)
+        return new usuario(nome, email_normalizado, telefone, gerar_hash(senha, salt), salt);
+    }
+
+    verificar_senha(senha: string): boolean {
+        return conferir_senha(senha, this.salt, this.senha_hash);
+    }
 
     criar_transacao(vendedor : usuario , comprador : usuario, quantidade : number, produto:produto) : transacao{
         const nova = new transacao(vendedor, comprador, quantidade, produto,
